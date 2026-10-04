@@ -1,0 +1,220 @@
+name: PC Virtual V5 - AnyDesk
+
+on:
+  workflow_dispatch:
+
+jobs:
+  pc-virtual:
+    name: Windows PC V5
+    runs-on: windows-2025
+    timeout-minutes: 360
+
+    steps:
+
+      # ==========================================
+      # INFORMAÇÕES DO PC
+      # ==========================================
+
+      - name: Informações do PC
+        shell: powershell
+        run: |
+          Write-Host "======================================"
+          Write-Host "       PC VIRTUAL V5 ONLINE"
+          Write-Host "======================================"
+
+          Write-Host ""
+          Write-Host "CPU:"
+          Get-CimInstance Win32_Processor |
+            Select-Object Name, NumberOfLogicalProcessors
+
+          Write-Host ""
+          Write-Host "RAM:"
+          $ram = Get-CimInstance Win32_ComputerSystem
+          Write-Host ("{0:N2} GB" -f ($ram.TotalPhysicalMemory / 1GB))
+
+          Write-Host ""
+          Write-Host "GPU:"
+          Get-CimInstance Win32_VideoController |
+            Select-Object Name
+
+      # ==========================================
+      # BAIXAR ANYDESK
+      # ==========================================
+
+      - name: Baixar AnyDesk
+        shell: powershell
+        run: |
+          $url = "https://download.anydesk.com/AnyDesk.exe"
+          $out = "$env:TEMP\AnyDesk.exe"
+
+          Write-Host "Baixando AnyDesk..."
+
+          Invoke-WebRequest `
+            -Uri $url `
+            -OutFile $out
+
+          if (!(Test-Path $out)) {
+            throw "Falha ao baixar AnyDesk."
+          }
+
+          Write-Host "AnyDesk baixado."
+
+      # ==========================================
+      # INSTALAR ANYDESK
+      # ==========================================
+
+      - name: Instalar AnyDesk
+        shell: powershell
+        run: |
+          $installer = "$env:TEMP\AnyDesk.exe"
+          $folder = "C:\Program Files (x86)\AnyDesk"
+
+          Write-Host "Instalando AnyDesk..."
+
+          Start-Process `
+            -FilePath $installer `
+            -ArgumentList "--install `"$folder`" --start-with-win --silent" `
+            -Wait
+
+          Start-Sleep -Seconds 5
+
+          $anydesk = "$folder\AnyDesk.exe"
+
+          if (!(Test-Path $anydesk)) {
+            throw "AnyDesk não foi instalado."
+          }
+
+          Write-Host "AnyDesk instalado."
+
+      # ==========================================
+      # INICIAR SERVIÇO
+      # ==========================================
+
+      - name: Iniciar AnyDesk
+        shell: powershell
+        run: |
+          $anydesk = "C:\Program Files (x86)\AnyDesk\AnyDesk.exe"
+
+          & $anydesk --start
+
+          Start-Sleep -Seconds 10
+
+          Write-Host "AnyDesk iniciado."
+
+      # ==========================================
+      # CONFIGURAR SENHA
+      # ==========================================
+
+      - name: Configurar acesso não supervisionado
+        shell: powershell
+        env:
+          ANYDESK_PASSWORD: ${{ secrets.ANYDESK_PASSWORD }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:ANYDESK_PASSWORD)) {
+            throw "O Secret ANYDESK_PASSWORD não foi configurado."
+          }
+
+          if ($env:ANYDESK_PASSWORD.Length -lt 8) {
+            throw "A senha do AnyDesk precisa ter pelo menos 8 caracteres."
+          }
+
+          $anydesk = "C:\Program Files (x86)\AnyDesk\AnyDesk.exe"
+
+          $env:ANYDESK_PASSWORD |
+            & $anydesk --set-password
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Não foi possível configurar a senha do AnyDesk."
+          }
+
+          Write-Host "Acesso não supervisionado configurado."
+
+      # ==========================================
+      # PEGAR ID
+      # ==========================================
+
+      - name: Mostrar ID do AnyDesk
+        shell: powershell
+        run: |
+          $anydesk = "C:\Program Files (x86)\AnyDesk\AnyDesk.exe"
+
+          Start-Sleep -Seconds 5
+
+          $id = & $anydesk --get-id
+
+          $id = ($id | Out-String).Trim()
+
+          if ([string]::IsNullOrWhiteSpace($id)) {
+            throw "Não foi possível obter o ID do AnyDesk."
+          }
+
+          Write-Host ""
+          Write-Host "======================================"
+          Write-Host "          PC VIRTUAL V5"
+          Write-Host "======================================"
+          Write-Host ""
+          Write-Host "ANYDESK ID:"
+          Write-Host $id
+          Write-Host ""
+          Write-Host "SENHA: configurada pelo Secret"
+          Write-Host ""
+          Write-Host "Abra o AnyDesk no celular."
+          Write-Host "Digite o ID acima."
+          Write-Host "======================================"
+
+          Add-Content `
+            -Path $env:GITHUB_STEP_SUMMARY `
+            -Value "# 🖥️ PC Virtual V5"
+
+          Add-Content `
+            -Path $env:GITHUB_STEP_SUMMARY `
+            -Value ""
+
+          Add-Content `
+            -Path $env:GITHUB_STEP_SUMMARY `
+            -Value "## AnyDesk ID"
+
+          Add-Content `
+            -Path $env:GITHUB_STEP_SUMMARY `
+            -Value "\`$id\`"
+
+          Add-Content `
+            -Path $env:GITHUB_STEP_SUMMARY `
+            -Value ""
+
+          Add-Content `
+            -Path $env:GITHUB_STEP_SUMMARY `
+            -Value "PC ONLINE."
+
+      # ==========================================
+      # MANTER O PC ONLINE
+      # ==========================================
+
+      - name: PC Virtual V5 Online
+        shell: powershell
+        run: |
+          $inicio = Get-Date
+          $limite = 350
+
+          Write-Host ""
+          Write-Host "======================================"
+          Write-Host "       PC VIRTUAL V5 ONLINE"
+          Write-Host "======================================"
+
+          while (((Get-Date) - $inicio).TotalMinutes -lt $limite) {
+
+            $decorrido = [math]::Floor(
+              ((Get-Date) - $inicio).TotalMinutes
+            )
+
+            $restante = $limite - $decorrido
+
+            Write-Host ""
+            Write-Host "PC ONLINE"
+            Write-Host "Tempo usado: $decorrido minutos"
+            Write-Host "Tempo restante: $restante minutos"
+
+            Start-Sleep -Seconds 60
+          }
+
+          Write-Host "PC Virtual V5 encerrado."
